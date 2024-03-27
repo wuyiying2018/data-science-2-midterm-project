@@ -11,7 +11,7 @@ LDA
 set.seed(666)
 
 data malnipulation
-```{r}
+
 # remove id
 data <- subset(dat, select = -id)
 
@@ -31,7 +31,10 @@ testing_data <- testing(data_split)
 # matrix of predictors
 x <- model.matrix(recovery_time ~ ., training_data) [ ,-1]
 y <- training_data$recovery_time
-```
+
 ctrl1 <- trainControl(method = "cv", number = 10)
+
+# lasso & elastic net
+lambda = exp(seq(-25, 5, length = 100))
 
 
