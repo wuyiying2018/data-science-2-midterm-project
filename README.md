@@ -10,7 +10,8 @@ linear
 - lasso
 - Elastic net
 ctrl1 <- trainControl(method = "cv", number = 10)
-
+tuneGrid = expand.grid(alpha = seq(0, 1, length = 21),
+                                       lambda = exp(seq(-25, 5, length = 100))),
 # lasso & elastic net
 lambda = exp(seq(-25, 5, length = 100))
 - pls
