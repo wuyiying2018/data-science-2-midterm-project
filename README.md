@@ -2,11 +2,28 @@
 
 ## Models
 
-MARS
+non-linear
+- MARS
+- GAM
 
-Elastic net
+linear
+- lasso
+- Elastic net
+ctrl1 <- trainControl(method = "cv", number = 10)
 
-LDA
+# lasso & elastic net
+lambda = exp(seq(-25, 5, length = 100))
+- pls
+
+classification
+According to CDC, most patients appear to recover from acute COVID-19 illness within 4 weeks, which is 28 days. Classify outcome `recovery_time` into < 28 days: normal, >= 28 days: long.
+
+- LDA
+- QDA
+ctrl2 <- trainControl(method = "repeatedcv", repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
 
 set.seed(666)
 
@@ -34,7 +51,5 @@ y <- training_data$recovery_time
 
 ctrl1 <- trainControl(method = "cv", number = 10)
 
-# lasso & elastic net
-lambda = exp(seq(-25, 5, length = 100))
 
 
