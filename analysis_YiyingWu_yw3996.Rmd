@@ -21,10 +21,10 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ## R packages
 
 library(tidyverse)
+library(corrplot)
 library(caret)
 library(tidymodels)
 library(gtsummary)
-library(corrplot)
 library(pls)
 ```
 
@@ -125,12 +125,13 @@ ggplot(summ_dat, aes_string(x = "LDL")) + geom_histogram(bins = 30) + ggtitle("H
 
 ggplot(summ_dat, aes_string(x = "recovery_time")) + geom_histogram(bins = 30) + ggtitle("Histogram of recovery_time")
 ```
+
 **correlation plot**
 
 ```{r,echo = FALSE}
 numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
 correlation_matrix <- cor(numerical_data)
-corrplot(correlation_matrix, method = "circle")
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", tl.col = "black", tl.srt = 45, insig = "blank" , number.cex = 0.7, diag = FALSE)
 ```
 
 
