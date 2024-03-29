@@ -22,6 +22,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 library(tidyverse)
 library(caret)
+library(tidymodels)
 library(gtsummary)
 library(corrplot)
 ```
@@ -134,3 +135,17 @@ corrplot(correlation_matrix, method = "circle")
 
 In this section, describe the models you used to predict the time to recovery from COVID-19. Briefly state the assumptions made by using the models. Provide a detailed description of the model training procedure and how you obtained the final model.
 
+### MARS
+```{r}
+set.seed(666)
+data_split <- initial_split(dat, prop = 0.8)
+```
+
+
+### GAM
+
+### lasso
+
+### Elastic net 
+
+ctrl1 <- trainControl(method = "cv", number = 10) tuneGrid = expand.grid(alpha = seq(0, 1, length = 21), lambda = exp(seq(-25, 5, length = 100)))
