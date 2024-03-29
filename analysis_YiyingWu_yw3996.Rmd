@@ -25,6 +25,7 @@ library(caret)
 library(tidymodels)
 library(gtsummary)
 library(corrplot)
+library(pls)
 ```
 
 
@@ -277,6 +278,27 @@ mean((enet.pred - testing_data$recovery_time)^2)
 
 The MSE of elastic net model is `r round(mean((enet.pred - testing_data$recovery_time)^2),3)`
 
+### Principal components regression (PCR)
+
+```{r}
+set.seed(666) 
+
+pcr.fit <- train(x = x_train, 
+                 y = y_train,
+                 method = "pcr",
+                 tuneGrid = data.frame(ncomp = 1:15),
+                 trControl = ctrl,
+                 preProcess = c("center", "scale"))
+predy.pcr <- predict(pcr.fit, newdata = x_test)
+
+
+ggplot(pcr.fit, highlight = TRUE) + theme_bw()
+
+# test MSE
+mean((y_test - predy.pcr)^2)
+```
+The MSE of pcr model is `r round(mean((y_test - predy.pcr)^2),3)`
+
 ## Model Comparison
 
 compare the RMSE
@@ -285,7 +307,8 @@ compare the RMSE
 resamp <- resamples(list(mars=model.mars,
                          gam=model.gam,
                          lasso=lasso.fit,
-                         enet=enet.fit))
+                         enet=enet.fit,
+                         pcr=pcr.fit))
 summary(resamp)
 
 bwplot(resamp, metric = "RMSE")
