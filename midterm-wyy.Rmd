@@ -1,0 +1,136 @@
+---
+title: "Midterm Result" 
+author: "Yiying Wu (yw3996)"
+output:
+  pdf_document:
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{lipsum}
+- \pagestyle{fancy}
+- \fancyhead[L]{Data Science 2 Midterm}
+- \fancyhead[R]{Yiying Wu (yw3996)}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
+--- 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+```{r}
+## R packages
+
+library(tidyverse)
+library(caret)
+library(gtsummary)
+library(corrplot)
+```
+
+## Input dataset
+```{r}
+# Load the .RData file
+load("./recovery.RData")
+```
+
+```{r}
+## recode categorical data
+dat <-dat %>% 
+  mutate(
+    ## gender
+    male=gender,
+    ## race
+    race=relevel(as.factor(race), ref ="1"),
+    ## smoking
+    smoking=relevel(as.factor(smoking), ref ="0"),
+    ## study
+    study=relevel(as.factor(study), ref ="A")
+  )
+```
+
+
+## Exploratory analysis and data visualization
+
+In this section, use appropriate visualization techniques to explore the dataset and identify any patterns or relationships in the data.
+
+**Summary statistics**
+```{r}
+summ_dat<-dat%>%
+  select(-id,-male)%>%
+  mutate(
+    gender = factor(case_when(
+      gender == "1" ~ "female",  
+      gender == "0" ~ "male"),
+      levels = c("male", "female")
+    ),
+    race= factor(case_when(
+      race == "1" ~ "White",  
+      race == "2" ~ "Asian",
+      race == "3" ~ "Black",
+      race == "4" ~ "Hispanic"),
+      levels = c("White", "Asian","Black","Hispanic")
+    ),
+    smoking=factor(case_when(
+      smoking == "0" ~ "Never smoked",  
+      smoking == "1" ~ "Former smoker",
+      smoking == "2" ~ "Current smoker"),
+      levels = c("Never smoked", "Former smoker","Current smoker")
+    ),
+    hypertension=factor(case_when(
+      hypertension == "0" ~ "No",  
+      hypertension == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    diabetes=factor(case_when(
+      diabetes == "0" ~ "No",  
+      diabetes == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    vaccine=factor(case_when(
+      vaccine == "0" ~ "Not vaccinated",  
+      vaccine == "1" ~ "Vaccinated"),
+      levels = c("Not vaccinated", "Vaccinated")
+    ),
+    severity=factor(case_when(
+      severity == "0" ~ "Not severe",  
+      severity == "1" ~ "Severe"),
+      levels = c("Not severe", "Severe")
+    )
+    )
+
+summ_dat %>% 
+  tbl_summary() %>% 
+  bold_labels()%>%
+  as_gt(include = everything()) %>%
+  gt::tab_header("Table 1: Summary of Dataset")
+```
+
+**Visualizations for the numerical variables**
+
+```{r}
+ggplot(summ_dat, aes_string(x = "age")) + geom_histogram(bins = 30) + ggtitle("Histogram of age")
+
+ggplot(summ_dat, aes_string(x = "height")) + geom_histogram(bins = 30) + ggtitle("Histogram of height")
+
+ggplot(summ_dat, aes_string(x = "weight")) + geom_histogram(bins = 30) + ggtitle("Histogram of weight")
+
+ggplot(summ_dat, aes_string(x = "bmi")) + geom_histogram(bins = 30) + ggtitle("Histogram of bmi")
+
+ggplot(summ_dat, aes_string(x = "SBP")) + geom_histogram(bins = 30) + ggtitle("Histogram of SBP")
+
+ggplot(summ_dat, aes_string(x = "LDL")) + geom_histogram(bins = 30) + ggtitle("Histogram of LDL")
+
+ggplot(summ_dat, aes_string(x = "recovery_time")) + geom_histogram(bins = 30) + ggtitle("Histogram of recovery_time")
+```
+**correlation plot**
+
+```{r}
+numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
+correlation_matrix <- cor(numerical_data)
+corrplot(correlation_matrix, method = "circle")
+```
+
+
+## Model training
+
+In this section, describe the models you used to predict the time to recovery from COVID-19. Briefly state the assumptions made by using the models. Provide a detailed description of the model training procedure and how you obtained the final model.
+
