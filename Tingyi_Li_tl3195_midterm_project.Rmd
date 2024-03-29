@@ -1,0 +1,387 @@
+---
+title: "midterm ds2"
+author: "Tingyi Li"
+date: "2024-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ISLR)
+library(glmnet)
+library(caret)
+library(tidymodels)
+library(pls)
+library(earth)
+library(bayesQR)
+library(ggplot2)
+library(pROC)
+library(plotmo)
+library(corrplot)
+library(patchwork)
+```
+
+```{r}
+load("./recovery.RData")
+data <- subset(dat, select = -id)
+data$study <- ifelse(data$study == "A", 0, 1)
+
+data <- data |>  
+  mutate(
+    gender = as.factor(gender),
+    race = as.factor(race),
+    smoking = as.factor(smoking),
+    hypertension = as.factor(hypertension),
+    diabetes = as.factor(diabetes),
+    vaccine = as.factor(vaccine),
+    severity = as.factor(severity),
+    study = as.factor(study)
+    )
+```
+
+
+# Data Partition
+Divide data into training data (80%) and testing data (20%)
+```{r}
+set.seed(666)
+data_split <- initial_split(data, prop = 0.8)
+
+# training data
+training_data <- training(data_split)
+training_data <- na.omit(training_data)
+
+
+# testing data
+testing_data <- testing(data_split)
+testing_data <- na.omit(testing_data)
+
+# matrix of predictors
+x <- model.matrix(recovery_time ~ ., training_data) [ ,-1]
+y <- training_data$recovery_time
+
+x2 <- model.matrix(recovery_time ~ ., testing_data) [ ,-1]
+y2 <- testing_data$recovery_time
+
+# 10-fold cross validation
+ctrl1 <- trainControl(method = "repeatedcv", repeats = 10)
+```
+
+# EDA
+```{r}
+skimr::skim(data)
+```
+
+
+## Feature plot for continuous variables 
+```{r}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+trainData <- training_data|>
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+featurePlot(x = trainData[ , 1:6],
+            y = trainData[ , 7],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors","Recovery Time"),
+            main = "Figure 1:Relationship between Continuous Predictors and Recovery Time",
+            type = c("p", "smooth"),
+            layout = c(3, 2))
+```
+
+# Correlation plot
+```{r}
+corr_data = training_data |>
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+
+corrplot(cor(corr_data), method = "circle", type = "full")
+```
+
+
+## Boxplot for categorical variables
+```{r}
+gender_plot <- data |>
+  ggplot(aes(x = gender, y = recovery_time, fill = gender))+
+  geom_violin() +
+  scale_fill_discrete(labels = c("female", "male")) +
+  labs(
+       x = "Gender",
+       y = "Recovery_time") +
+  theme_minimal()
+gender_plot
+
+race_plot <- data |>
+  ggplot(aes(x = race, y = recovery_time, fill = race)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("White", "Asian", "Black", "Hispanic")) +
+  labs(
+       x = "race",
+       y = "Recovery_time") +
+  theme_minimal()
+race_plot
+
+smoking_plot <- data |>
+  ggplot(aes(x = smoking, y = recovery_time, fill = smoking)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("Never smoked", "Former smoker", "Current smoker")) +
+  labs(
+       x = "smoking",
+       y = "Recovery_time") +
+  theme_minimal()
+smoking_plot 
+
+hypertension_plot <- data |>
+  ggplot(aes(x = hypertension, y = recovery_time, fill = hypertension)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "hypertension",
+       y = "Recovery_time") +
+  theme_minimal()
+hypertension_plot
+
+diabetes_plot <- data |>
+  ggplot(aes(x = diabetes, y = recovery_time, fill = diabetes)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "diabetes",
+       y = "Recovery_time") +
+  theme_minimal()
+diabetes_plot
+
+vaccine_plot <- data |>
+   ggplot(aes(x = vaccine, y = recovery_time, fill = vaccine)) +
+   geom_violin() +
+   scale_fill_discrete(labels = c("Not vaccinated", "Vaccinated")) +
+   labs(
+        x = "vaccine",
+        y = "Recovery_time") +
+   theme_minimal()
+vaccine_plot
+
+severity_plot <- data |>
+  ggplot(aes(x = severity, y = recovery_time, fill = severity)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("Not severe", "Severe")) +
+  labs(
+       x = "severity",
+       y = "Recovery_time") +
+  theme_minimal()
+severity_plot
+
+study_plot <- data |>
+  ggplot(aes(x = study, y = recovery_time, fill = study)) +
+  geom_violin() +
+  scale_fill_discrete(labels = c("A", "B")) +
+  labs(
+       x = "study",
+       y = "Recovery_time") +
+  theme_minimal()
+study_plot
+
+gender_plot + race_plot + smoking_plot + hypertension_plot + diabetes_plot + vaccine_plot + severity_plot + study_plot + plot_layout(ncol = 3)
+```
+
+
+
+
+# Linear models
+
+## Fit a lasso model
+```{r}
+set.seed(666)
+
+lasso.fit <- train(recovery_time ~ .,
+                   data = training_data,
+                   method = "glmnet",
+                   tuneGrid = expand.grid(alpha = 1, 
+                                          lambda = exp(seq(-25, 5, length = 100))),
+                   trControl = ctrl1)
+plot(lasso.fit, xTrans = log)
+
+## Select the best tuning parameter
+lasso.fit$bestTune
+
+# coefficients in the final model
+coef(lasso.fit$finalModel, lasso.fit$bestTune$lambda)
+```
+The selected tuning parameter is 0.00912288.
+
+Test errors
+```{r}
+set.seed(666)
+lasso.pred <- predict(lasso.fit, newdata = testing_data)
+mean((lasso.pred - testing_data[, "recovery_time"])^2)
+```
+
+The test error is 298.3016.
+
+
+## Fit an elastic net model
+```{r}
+set.seed(666)
+enet.fit <- train(recovery_time ~ .,
+                  data = training_data,
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = seq(0, 1, length = 21), 
+                                         lambda = exp(seq(-25, 5, length = 100))),
+
+                  trControl = ctrl1)
+## Select the best tuning parameter
+enet.fit$bestTune
+
+#Plot
+myCol <- rainbow(25)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+
+plot(enet.fit, par.settings = myPar)
+
+# coefficients in the final model
+coef(enet.fit$finalModel, enet.fit$bestTune$lambda)
+
+# test error
+enet.pred <- predict(enet.fit, newdata = testing_data)
+mean((enet.pred - testing_data[, "recovery_time"])^2)
+```
+The selected tuning parameter is 0.00367552, and the test error is 297.1642.
+
+
+## Fit a PCR model
+```{r}
+set.seed(666)
+pcr.fit <- train(x, y,
+                 method = "pcr",
+                 tuneGrid = data.frame(ncomp = 1:15),
+                 trControl = ctrl1,
+                 scale = TRUE)
+predy2.pls2 <- predict(pls.fit, newdata = x2)
+mean((y2 - predy2.pls2)^2)
+
+ggplot(pls.fit, highlight = TRUE)
+summary(pls.fit)
+```
+There are 15 components in the model and the test error is 323.779.
+
+# Nonlinear models
+## MARS
+```{r}
+set.seed(666)
+mars.grid <- expand.grid(degree = 1:4,
+                         nprune = 2:38)
+mars.fit <- train(x, y,
+                  method = "earth",
+                  tuneGrid = mars.grid,
+                  trControl = ctrl1)
+ggplot(mars.fit)
+```
+```{r}
+mars.fit$bestTune
+```
+```{r}
+coef(mars.fit$finalModel)
+# Test error
+mars.pred <- predict(mars.fit, newdata = x2)
+mars.test.error <- mean((mars.pred - y2)^2)
+mars.test.error
+```
+The regression function should be: 10.021897 + 4.853416 * h(31-bmi) + 21.54375 * h(bmi-31) * study + 2.352927 * h(height-162.4) * h(bmi-31) + 5.5933235 * h(bmi-25.2) - 5.494258 * vaccine - 2.316318 * h(weight-86.4) * h(bmi-31) + 39.271654 * h(bmi-33.8) + 14.094456 * severity * study
+
+The test error is 251.9653
+
+## GAM 
+```{r}
+set.seed(666)
+
+gam.fit <- train(x, y, 
+                 method = "gam",
+                 tuneGrid = data.frame(method = "GCV.Cp", select = c(TRUE,FALSE)),
+                 trControl = ctrl1)
+gam.fit$bestTune
+gam.fit$finalModel
+```
+
+The GAM model includes all the predictors.
+
+Generate plot for GAM
+```{r}
+plot(gam.fit$finalModel)
+```
+We can observe that `age`, `SBP`, and `LDL` shows linear trend, whereas `bmi`, `height` and `weight` shows nonlinear trend as their df > 1.
+
+Test error for GAM
+```{r}
+gam.pred <- predict(gam.fit, newdata = x2)
+gam.test.error <- mean((gam.pred - y2)^2)
+gam.test.error
+
+```
+The test error for GAM is 272.0012.
+
+# Classification
+
+Categorize `recovery_time` into two categories: < 28 days: 0,  >=28 and < 84 days: 1 since CDC states that most patients recover from acute COVID-19 illness within four weeks.
+```{r}
+training_set <- training_data |>
+  mutate(
+    recovery_time = as.factor(case_when(recovery_time < 28 ~ "normal", recovery_time >=28 ~ "long")))
+
+
+
+```
+
+#LDA
+```{r}
+set.seed(666)
+ctrl2 <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+
+training_set[, 1:14] <- lapply(training_set[, 1:14], as.numeric)
+
+model.lda <- train(x = training_set[, 1:14],
+                   y = training_set$recovery_time,
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+
+testing_data[, 1:14] <- lapply(testing_data[, 1:14], as.numeric)
+lda.pred2 <- predict(model.lda, newdata = testing_data, type = "prob")
+head(lda.pred2)
+```
+
+# QDA
+```{r}
+set.seed(666)
+model.qda <- train(x = training_set[, 1:14],
+                   y = training_set$recovery_time,
+                   method = "qda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+qda.pred2 <- predict(model.qda, newdata = testing_data, type = "prob")
+head(qda.pred2)
+```
+
+Model comparison
+```{r}
+resamp <- resamples(list(lasso = lasso.fit, 
+                         elastic_net = enet.fit,
+                         pcr = pcr.fit, 
+                         MARS = mars.fit,
+                         GAM = gam.fit,
+                         LDA = model.lda,
+                         QDA = model.qda))
+summary(resamp)
+
+```
+
