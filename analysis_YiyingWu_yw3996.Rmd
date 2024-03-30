@@ -35,23 +35,6 @@ load("./recovery.RData")
 ```
 
 
-```{r,echo = FALSE}
-## recode categorical data
-
-dat <-dat %>% 
-  mutate(
-    ## gender
-    male=gender,
-    ## race
-    race=relevel(as.factor(race), ref ="1"),
-    ## smoking
-    smoking=relevel(as.factor(smoking), ref ="0"),
-    ## study
-    study=relevel(as.factor(study), ref ="A")
-  )
-```
-
-
 ## Exploratory analysis and data visualization
 
 In this section, use appropriate visualization techniques to explore the dataset and identify any patterns or relationships in the data.
@@ -59,7 +42,7 @@ In this section, use appropriate visualization techniques to explore the dataset
 **Summary statistics**
 ```{r,echo = FALSE}
 summ_dat<-dat%>%
-  select(-id,-male)%>%
+  select(-id)%>%
   mutate(
     gender = factor(case_when(
       gender == "1" ~ "female",  
@@ -153,22 +136,40 @@ In this section, describe the models you used to predict the time to recovery fr
 
 **Outcome: recovery_time**
 
+### Data preparation
+```{r}
+dat <- subset(dat, select = -id)
+dat$study <- ifelse(dat$study == "A", 0, 1)
+dat <- dat %>%  
+  mutate(
+    gender = as.factor(gender),
+    race = as.factor(race),
+    smoking = as.factor(smoking),
+    hypertension = as.factor(hypertension),
+    diabetes = as.factor(diabetes),
+    vaccine = as.factor(vaccine),
+    severity = as.factor(severity),
+    study = as.factor(study)
+    )
+
+```
+
 ### Partition the dataset into two parts: training data (80%) and test data (20%).
 ```{r}
 set.seed(666)
 data_split <- initial_split(dat, prop = 0.8)
 
 # Extract the training and test data
-training_data <- training(data_split)%>% select(-id,-gender)
-x_train <- training_data %>% select(-recovery_time)
+training_data <- training(data_split)
+x_train <- model.matrix(recovery_time ~ ., training_data) [ ,-1]
 y_train <- training_data$recovery_time
 
-testing_data <- testing(data_split)%>% select(-id,-gender)
-x_test <- testing_data %>% select(-recovery_time)
+testing_data <- testing(data_split)
+x_test <- model.matrix(recovery_time ~ ., testing_data) [ ,-1]
 y_test <- testing_data$recovery_time
 
 # ctrl
-ctrl <- trainControl(method = "cv", number = 10)
+ctrl <- trainControl(method = "repeatedcv", number = 10)
 ```
 
 ### Multivariate Adaptive Regression Spline (MARS) Model
@@ -178,7 +179,7 @@ model.mars <- train(x = x_train,
                     y = y_train,
                     method = "earth", # earth is for mars
                     tuneGrid = expand.grid(degree = 1:4, 
-                                           nprune = 2:20),
+                                           nprune = 2:38),
                     trControl = ctrl)
 
 # degree from 1~4 is sufficient
@@ -211,6 +212,7 @@ set.seed(666)
 model.gam <- train(x = x_train,
                    y = y_train,
                    method = "gam",
+                   tuneGrid = data.frame(method = "GCV.Cp", select = c(TRUE,FALSE)),
                    trControl = ctrl)
 
 model.gam$bestTune
