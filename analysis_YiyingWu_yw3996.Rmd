@@ -131,7 +131,19 @@ ggplot(summ_dat, aes_string(x = "recovery_time")) + geom_histogram(bins = 30) + 
 ```{r,echo = FALSE}
 numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
 correlation_matrix <- cor(numerical_data)
-corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", tl.col = "black", tl.srt = 45, insig = "blank" , number.cex = 0.7, diag = FALSE)
+
+# Set up the plotting device to save the output to a file
+png(filename = "./result_files/cor_plot.png", width = 8, height = 8, units = 'in', res = 300)
+
+# Create the correlation plot
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
+
+# Turn off the plotting device
+dev.off()
+
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
 ```
 
 
