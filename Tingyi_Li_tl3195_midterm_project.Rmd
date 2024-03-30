@@ -1,15 +1,29 @@
 ---
-title: "midterm ds2"
+title: "Midterm project"
 author: "Tingyi Li"
-date: "2024-03-22"
-output: html_document
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: yes
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{lipsum}
+- \pagestyle{fancy}
+- \fancyhead[L]{HW1}
+- \fancyhead[R]{Tingyi Li}
+- \fancypagestyle{plain}{\pagestyle{fancy}}
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, echo = T, message = FALSE, results='hide', warning=FALSE}
 library(ISLR)
 library(glmnet)
 library(caret)
@@ -18,7 +32,6 @@ library(pls)
 library(earth)
 library(bayesQR)
 library(ggplot2)
-library(pROC)
 library(plotmo)
 library(corrplot)
 library(patchwork)
@@ -106,89 +119,91 @@ corrplot(cor(corr_data), method = "circle", type = "full")
 ```
 
 
-## Boxplot for categorical variables
+## Violin plot for categorical variables
 ```{r}
 gender_plot <- data |>
   ggplot(aes(x = gender, y = recovery_time, fill = gender))+
   geom_violin() +
-  scale_fill_discrete(labels = c("female", "male")) +
+  scale_x_discrete(labels = c("female", "male")) +
   labs(
        x = "Gender",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 gender_plot
 
 race_plot <- data |>
   ggplot(aes(x = race, y = recovery_time, fill = race)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("White", "Asian", "Black", "Hispanic")) +
+  scale_x_discrete(labels = c("White", "Asian", "Black", "Hispanic")) +
   labs(
        x = "race",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 race_plot
 
 smoking_plot <- data |>
   ggplot(aes(x = smoking, y = recovery_time, fill = smoking)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("Never smoked", "Former smoker", "Current smoker")) +
+  scale_x_discrete(labels = c("Never", "Former", "Current")) +
   labs(
        x = "smoking",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 smoking_plot 
 
 hypertension_plot <- data |>
   ggplot(aes(x = hypertension, y = recovery_time, fill = hypertension)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("No", "Yes")) +
+  scale_x_discrete(labels = c("No", "Yes")) +
   labs(
        x = "hypertension",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 hypertension_plot
 
 diabetes_plot <- data |>
   ggplot(aes(x = diabetes, y = recovery_time, fill = diabetes)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("No", "Yes")) +
+  scale_x_discrete(labels = c("No", "Yes")) +
   labs(
        x = "diabetes",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 diabetes_plot
 
 vaccine_plot <- data |>
    ggplot(aes(x = vaccine, y = recovery_time, fill = vaccine)) +
    geom_violin() +
-   scale_fill_discrete(labels = c("Not vaccinated", "Vaccinated")) +
+   scale_x_discrete(labels = c("Not vaccinated", "Vaccinated")) +
    labs(
         x = "vaccine",
         y = "Recovery_time") +
-   theme_minimal()
+   theme_minimal() + theme(legend.position = "none")
 vaccine_plot
 
 severity_plot <- data |>
   ggplot(aes(x = severity, y = recovery_time, fill = severity)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("Not severe", "Severe")) +
+  scale_x_discrete(labels = c("Not severe", "Severe")) +
   labs(
        x = "severity",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 severity_plot
 
 study_plot <- data |>
   ggplot(aes(x = study, y = recovery_time, fill = study)) +
   geom_violin() +
-  scale_fill_discrete(labels = c("A", "B")) +
+  scale_x_discrete(labels = c("A", "B")) +
   labs(
        x = "study",
        y = "Recovery_time") +
-  theme_minimal()
+  theme_minimal() + theme(legend.position = "none")
 study_plot
 
-gender_plot + race_plot + smoking_plot + hypertension_plot + diabetes_plot + vaccine_plot + severity_plot + study_plot + plot_layout(ncol = 3)
+combined <- gender_plot + race_plot + smoking_plot + hypertension_plot + diabetes_plot + vaccine_plot + severity_plot + study_plot + plot_layout(ncol = 3)
+
+combined + plot_annotation(title = "Figure 2: Relationship between Categorical Predictors and Recovery Time")
 ```
 
 
@@ -264,11 +279,11 @@ pcr.fit <- train(x, y,
                  tuneGrid = data.frame(ncomp = 1:15),
                  trControl = ctrl1,
                  scale = TRUE)
-predy2.pls2 <- predict(pls.fit, newdata = x2)
-mean((y2 - predy2.pls2)^2)
+predy2.pcr2 <- predict(pcr.fit, newdata = x2)
+mean((y2 - predy2.pcr2)^2)
 
-ggplot(pls.fit, highlight = TRUE)
-summary(pls.fit)
+ggplot(pcr.fit, highlight = TRUE)
+summary(pcr.fit)
 ```
 There are 15 components in the model and the test error is 323.779.
 
@@ -316,7 +331,7 @@ Generate plot for GAM
 ```{r}
 plot(gam.fit$finalModel)
 ```
-We can observe that `age`, `SBP`, and `LDL` shows linear trend, whereas `bmi`, `height` and `weight` shows nonlinear trend as their df > 1.
+
 
 Test error for GAM
 ```{r}
@@ -327,61 +342,17 @@ gam.test.error
 ```
 The test error for GAM is 272.0012.
 
-# Classification
-
-Categorize `recovery_time` into two categories: < 28 days: 0,  >=28 and < 84 days: 1 since CDC states that most patients recover from acute COVID-19 illness within four weeks.
-```{r}
-training_set <- training_data |>
-  mutate(
-    recovery_time = as.factor(case_when(recovery_time < 28 ~ "normal", recovery_time >=28 ~ "long")))
 
 
-
-```
-
-#LDA
-```{r}
-set.seed(666)
-ctrl2 <- trainControl(method = "repeatedcv", repeats = 10,
-                     summaryFunction = twoClassSummary,
-                     classProbs = TRUE)
-
-
-training_set[, 1:14] <- lapply(training_set[, 1:14], as.numeric)
-
-model.lda <- train(x = training_set[, 1:14],
-                   y = training_set$recovery_time,
-                   method = "lda",
-                   metric = "ROC",
-                   trControl = ctrl2)
-
-testing_data[, 1:14] <- lapply(testing_data[, 1:14], as.numeric)
-lda.pred2 <- predict(model.lda, newdata = testing_data, type = "prob")
-head(lda.pred2)
-```
-
-# QDA
-```{r}
-set.seed(666)
-model.qda <- train(x = training_set[, 1:14],
-                   y = training_set$recovery_time,
-                   method = "qda",
-                   metric = "ROC",
-                   trControl = ctrl2)
-qda.pred2 <- predict(model.qda, newdata = testing_data, type = "prob")
-head(qda.pred2)
-```
-
-Model comparison
+# Model comparison
 ```{r}
 resamp <- resamples(list(lasso = lasso.fit, 
                          elastic_net = enet.fit,
                          pcr = pcr.fit, 
                          MARS = mars.fit,
-                         GAM = gam.fit,
-                         LDA = model.lda,
-                         QDA = model.qda))
+                         GAM = gam.fit))
 summary(resamp)
 
+bwplot(resamp, metric = "RMSE")
 ```
 
