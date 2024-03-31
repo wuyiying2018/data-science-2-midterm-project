@@ -144,10 +144,10 @@ theme1$plot.line$lwd <- 2
 theme1$strip.background$col <- rgb(.0, .2, .6, .2)
 trellis.par.set(theme1)
 
-trainData <- training_data|>
+continuousData <- data|>
   dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
-featurePlot(x = trainData[ , 1:6],
-            y = trainData[ , 7],
+featurePlot(x = continuousData[ , 1:6],
+            y = continuousData[ , 7],
             plot = "scatter",
             span = .5,
             labels = c("Predictors","Recovery Time"),
