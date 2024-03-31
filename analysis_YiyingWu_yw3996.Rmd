@@ -17,32 +17,48 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 
-```{r,echo = FALSE}
+```{r}
 ## R packages
-
 library(tidyverse)
 library(corrplot)
 library(caret)
 library(tidymodels)
 library(gtsummary)
 library(pls)
+library(patchwork)
 ```
 
 
-```{r,echo = FALSE}
+```{r}
 ## Input dataset
 load("./recovery.RData")
 ```
 
+### Data preparation
+```{r}
+dat <- subset(dat, select = -id)
+dat$study <- ifelse(dat$study == "A", 0, 1)
+dat <- dat %>%  
+  mutate(
+    gender = as.factor(gender),
+    race = as.factor(race),
+    smoking = as.factor(smoking),
+    hypertension = as.factor(hypertension),
+    diabetes = as.factor(diabetes),
+    vaccine = as.factor(vaccine),
+    severity = as.factor(severity),
+    study = as.factor(study)
+    )
+dat <- na.omit(dat)
+```
 
 ## Exploratory analysis and data visualization
 
 In this section, use appropriate visualization techniques to explore the dataset and identify any patterns or relationships in the data.
 
-**Summary statistics**
-```{r,echo = FALSE}
+### Summary statistics
+```{r}
 summ_dat<-dat%>%
-  select(-id)%>%
   mutate(
     gender = factor(case_when(
       gender == "1" ~ "female",  
@@ -91,7 +107,7 @@ summ_dat %>%
   gt::tab_header("Table 1: Summary of Dataset")
 ```
 
-**Visualizations for the numerical variables**
+### Histograms for the numerical variables
 
 ```{r,echo = FALSE}
 ggplot(summ_dat, aes_string(x = "age")) + geom_histogram(bins = 30) + ggtitle("Histogram of age")
@@ -109,9 +125,47 @@ ggplot(summ_dat, aes_string(x = "LDL")) + geom_histogram(bins = 30) + ggtitle("H
 ggplot(summ_dat, aes_string(x = "recovery_time")) + geom_histogram(bins = 30) + ggtitle("Histogram of recovery_time")
 ```
 
-**correlation plot**
+### Feature plot for continuous variables 
+```{r,fig.width=8}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
 
-```{r,echo = FALSE}
+continuousData <- dat%>%
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+
+# Set up the plotting device to save the output to a file
+png(filename = "./result_files/featurePlot.png", width = 8, height = 8, units = 'in', res = 300)
+
+featurePlot(x = continuousData[ , 1:6],
+            y = continuousData[ , 7],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors","Recovery Time"),
+            main = "Figure 1:Relationship between Continuous Predictors and Recovery Time",
+            type = c("p", "smooth"),
+            layout = c(3, 2))
+
+# Turn off the plotting device
+dev.off()
+
+featurePlot(x = continuousData[ , 1:6],
+            y = continuousData[ , 7],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors","Recovery Time"),
+            main = "Figure 1:Relationship between Continuous Predictors and Recovery Time",
+            type = c("p", "smooth"),
+            layout = c(3, 2))
+```
+
+### correlation plot
+
+```{r}
 numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
 correlation_matrix <- cor(numerical_data)
 
@@ -130,29 +184,100 @@ corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black",
 ```
 
 
+### Violin plot for categorical variables
+```{r}
+gender_plot <- dat %>%
+  ggplot(aes(x = gender, y = recovery_time, fill = gender))+
+  geom_violin() +
+  scale_x_discrete(labels = c("female", "male")) +
+  labs(
+       x = "Gender",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+gender_plot
+
+race_plot <- dat %>%
+  ggplot(aes(x = race, y = recovery_time, fill = race)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("White", "Asian", "Black", "Hispanic")) +
+  labs(
+       x = "race",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+race_plot
+
+smoking_plot <- dat %>%
+  ggplot(aes(x = smoking, y = recovery_time, fill = smoking)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("Never", "Former", "Current")) +
+  labs(
+       x = "smoking",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+smoking_plot 
+
+hypertension_plot <- dat %>%
+  ggplot(aes(x = hypertension, y = recovery_time, fill = hypertension)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "hypertension",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+hypertension_plot
+
+diabetes_plot <- dat %>%
+  ggplot(aes(x = diabetes, y = recovery_time, fill = diabetes)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "diabetes",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+diabetes_plot
+
+vaccine_plot <- dat %>%
+   ggplot(aes(x = vaccine, y = recovery_time, fill = vaccine)) +
+   geom_violin() +
+   scale_x_discrete(labels = c("Not vaccinated", "Vaccinated")) +
+   labs(
+        x = "vaccine",
+        y = "Recovery_time") +
+   theme_minimal() + theme(legend.position = "none")
+vaccine_plot
+
+severity_plot <- dat %>%
+  ggplot(aes(x = severity, y = recovery_time, fill = severity)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("Not severe", "Severe")) +
+  labs(
+       x = "severity",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+severity_plot
+
+study_plot <- dat %>%
+  ggplot(aes(x = study, y = recovery_time, fill = study)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("A", "B")) +
+  labs(
+       x = "study",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+study_plot
+
+combined <- gender_plot + race_plot + smoking_plot + hypertension_plot + diabetes_plot + vaccine_plot + severity_plot + study_plot + plot_layout(ncol = 3)
+
+combined + plot_annotation(title = "Figure 2: Relationship between Categorical Predictors and Recovery Time")
+```
+
+
+
 ## Model training
 
 In this section, describe the models you used to predict the time to recovery from COVID-19. Briefly state the assumptions made by using the models. Provide a detailed description of the model training procedure and how you obtained the final model.
 
 **Outcome: recovery_time**
-
-### Data preparation
-```{r}
-dat <- subset(dat, select = -id)
-dat$study <- ifelse(dat$study == "A", 0, 1)
-dat <- dat %>%  
-  mutate(
-    gender = as.factor(gender),
-    race = as.factor(race),
-    smoking = as.factor(smoking),
-    hypertension = as.factor(hypertension),
-    diabetes = as.factor(diabetes),
-    vaccine = as.factor(vaccine),
-    severity = as.factor(severity),
-    study = as.factor(study)
-    )
-
-```
 
 ### Partition the dataset into two parts: training data (80%) and test data (20%).
 ```{r}
@@ -169,7 +294,7 @@ x_test <- model.matrix(recovery_time ~ ., testing_data) [ ,-1]
 y_test <- testing_data$recovery_time
 
 # ctrl
-ctrl <- trainControl(method = "repeatedcv", number = 10)
+ctrl <- trainControl(method = "cv", number = 10)
 ```
 
 ### Multivariate Adaptive Regression Spline (MARS) Model
