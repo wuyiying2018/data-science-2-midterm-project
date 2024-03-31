@@ -77,12 +77,60 @@ x2 <- model.matrix(recovery_time ~ ., testing_data) [ ,-1]
 y2 <- testing_data$recovery_time
 
 # 10-fold cross validation
-ctrl1 <- trainControl(method = "repeatedcv", number = 10)
+ctrl1 <- trainControl(method = "cv", number = 10)
 ```
 
 # EDA
+## Summary Statistics
 ```{r}
-skimr::skim(data)
+summ_dat<-dat%>%
+  select(-id)%>%
+  mutate(
+    gender = factor(case_when(
+      gender == "1" ~ "male",  
+      gender == "0" ~ "female"),
+      levels = c("female", "male")
+    ),
+    race= factor(case_when(
+      race == "1" ~ "White",  
+      race == "2" ~ "Asian",
+      race == "3" ~ "Black",
+      race == "4" ~ "Hispanic"),
+      levels = c("White", "Asian","Black","Hispanic")
+    ),
+    smoking=factor(case_when(
+      smoking == "0" ~ "Never smoked",  
+      smoking == "1" ~ "Former smoker",
+      smoking == "2" ~ "Current smoker"),
+      levels = c("Never smoked", "Former smoker","Current smoker")
+    ),
+    hypertension=factor(case_when(
+      hypertension == "0" ~ "No",  
+      hypertension == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    diabetes=factor(case_when(
+      diabetes == "0" ~ "No",  
+      diabetes == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    vaccine=factor(case_when(
+      vaccine == "0" ~ "Not vaccinated",  
+      vaccine == "1" ~ "Vaccinated"),
+      levels = c("Not vaccinated", "Vaccinated")
+    ),
+    severity=factor(case_when(
+      severity == "0" ~ "Not severe",  
+      severity == "1" ~ "Severe"),
+      levels = c("Not severe", "Severe")
+    )
+    )
+
+summ_dat %>% 
+  tbl_summary() %>% 
+  bold_labels()%>%
+  as_gt(include = everything()) %>%
+  gt::tab_header("Table 1: Summary of Dataset")
 ```
 
 
@@ -110,10 +158,21 @@ featurePlot(x = trainData[ , 1:6],
 
 # Correlation plot
 ```{r}
-corr_data = training_data |>
-  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL')
+numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
+correlation_matrix <- cor(numerical_data)
 
-corrplot(cor(corr_data), method = "circle", type = "full")
+# Set up the plotting device to save the output to a file
+png(filename = "./result_files/cor_plot.png", width = 8, height = 8, units = 'in', res = 300)
+
+# Create the correlation plot
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
+
+# Turn off the plotting device
+dev.off()
+
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
 ```
 
 
