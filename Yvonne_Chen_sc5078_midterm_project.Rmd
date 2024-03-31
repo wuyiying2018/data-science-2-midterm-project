@@ -1,0 +1,436 @@
+---
+title: "Yvonne_Chen_sc5078_midterm_project"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = T, message = FALSE, results='hide', warning=FALSE}
+library(caret)
+library(tidymodels)
+library(splines)
+library(mgcv)
+library(pdp)
+library(earth)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(discrim) 
+library(MASS)
+library(mlbench)
+library(pROC)
+library(klaR)
+library(plotmo)
+library(patchwork)
+library(corrplot)
+library(gtsummary)
+```
+
+# Dataset split
+Randomly split dataset into traning (80%) and testing data (20%).
+```{r}
+# load dataset
+load("~/Desktop/8106 Data Science II/data science II midterm project/recovery.RData")
+
+# remove id
+data <- subset(dat, select = -id)
+
+# set study A/B to 0/1
+data$study <- ifelse(data$study == "A", 0, 1)
+
+
+set.seed(666)
+data_split <- initial_split(data, prop = 0.8)
+
+# training data
+training_data <- training(data_split)
+
+# test data
+testing_data <- testing(data_split)
+
+# matrix of predictors
+x <- model.matrix(recovery_time ~ ., training_data) [ ,-1]
+x2 <- model.matrix(recovery_time ~ ., testing_data) [ ,-1]
+y <- training_data$recovery_time
+
+```
+
+# EDA
+## Summary Statistics
+```{r}
+summ_dat<-dat%>%
+  select(-id)%>%
+  mutate(
+    gender = factor(case_when(
+      gender == "1" ~ "male",  
+      gender == "0" ~ "female"),
+      levels = c("female", "male")
+    ),
+    race= factor(case_when(
+      race == "1" ~ "White",  
+      race == "2" ~ "Asian",
+      race == "3" ~ "Black",
+      race == "4" ~ "Hispanic"),
+      levels = c("White", "Asian","Black","Hispanic")
+    ),
+    smoking=factor(case_when(
+      smoking == "0" ~ "Never smoked",  
+      smoking == "1" ~ "Former smoker",
+      smoking == "2" ~ "Current smoker"),
+      levels = c("Never smoked", "Former smoker","Current smoker")
+    ),
+    hypertension=factor(case_when(
+      hypertension == "0" ~ "No",  
+      hypertension == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    diabetes=factor(case_when(
+      diabetes == "0" ~ "No",  
+      diabetes == "1" ~ "Yes"),
+      levels = c("No", "Yes")
+    ),
+    vaccine=factor(case_when(
+      vaccine == "0" ~ "Not vaccinated",  
+      vaccine == "1" ~ "Vaccinated"),
+      levels = c("Not vaccinated", "Vaccinated")
+    ),
+    severity=factor(case_when(
+      severity == "0" ~ "Not severe",  
+      severity == "1" ~ "Severe"),
+      levels = c("Not severe", "Severe")
+    )
+    )
+
+summ_dat %>% 
+  tbl_summary() %>% 
+  bold_labels()%>%
+  as_gt(include = everything()) %>%
+  gt::tab_header("Table 1: Summary of Dataset")
+```
+
+
+## Feature plot for continuous variables 
+```{r}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+continuousData <- data|>
+  dplyr::select('age', 'height', 'weight', 'bmi', 'SBP', 'LDL', 'recovery_time')
+featurePlot(x = continuousData[ , 1:6],
+            y = continuousData[ , 7],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors","Recovery Time"),
+            main = "Figure 1:Relationship between Continuous Predictors and Recovery Time",
+            type = c("p", "smooth"),
+            layout = c(3, 2))
+```
+
+# Correlation plot
+```{r}
+numerical_data <- summ_dat[, sapply(summ_dat, is.numeric)]
+correlation_matrix <- cor(numerical_data)
+
+# Create the correlation plot
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
+
+
+corrplot::corrplot(correlation_matrix, method = "color", addCoef.col = "black", 
+                   tl.col = "black", tl.srt = 45, insig = "blank", number.cex = 0.7, diag = FALSE)
+```
+
+
+## Violin plot for categorical variables
+```{r}
+gender_plot <- data |>
+  ggplot(aes(x = gender, y = recovery_time, fill = gender))+
+  geom_violin() +
+  scale_x_discrete(labels = c("female", "male")) +
+  labs(
+       x = "Gender",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+gender_plot
+
+race_plot <- data |>
+  ggplot(aes(x = race, y = recovery_time, fill = race)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("White", "Asian", "Black", "Hispanic")) +
+  labs(
+       x = "race",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+race_plot
+
+smoking_plot <- data |>
+  ggplot(aes(x = smoking, y = recovery_time, fill = smoking)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("Never", "Former", "Current")) +
+  labs(
+       x = "smoking",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+smoking_plot 
+
+hypertension_plot <- data |>
+  ggplot(aes(x = hypertension, y = recovery_time, fill = hypertension)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "hypertension",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+hypertension_plot
+
+diabetes_plot <- data |>
+  ggplot(aes(x = diabetes, y = recovery_time, fill = diabetes)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("No", "Yes")) +
+  labs(
+       x = "diabetes",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+diabetes_plot
+
+vaccine_plot <- data |>
+   ggplot(aes(x = vaccine, y = recovery_time, fill = vaccine)) +
+   geom_violin() +
+   scale_x_discrete(labels = c("Not vaccinated", "Vaccinated")) +
+   labs(
+        x = "vaccine",
+        y = "Recovery_time") +
+   theme_minimal() + theme(legend.position = "none")
+vaccine_plot
+
+severity_plot <- data |>
+  ggplot(aes(x = severity, y = recovery_time, fill = severity)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("Not severe", "Severe")) +
+  labs(
+       x = "severity",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+severity_plot
+
+study_plot <- data |>
+  ggplot(aes(x = study, y = recovery_time, fill = study)) +
+  geom_violin() +
+  scale_x_discrete(labels = c("A", "B")) +
+  labs(
+       x = "study",
+       y = "Recovery_time") +
+  theme_minimal() + theme(legend.position = "none")
+study_plot
+
+combined <- gender_plot + race_plot + smoking_plot + hypertension_plot + diabetes_plot + vaccine_plot + severity_plot + study_plot + plot_layout(ncol = 3)
+
+combined + plot_annotation(title = "Figure 2: Relationship between Categorical Predictors and Recovery Time")
+```
+
+# Nonlinear Methods
+## Multivariate Adaptive Regression Splines (MARS)
+Train a multivariate adaptive regression spline (MARS) model.
+```{r}
+mars_grid <- expand.grid(degree = 1:4, 
+                         nprune = 2:38)
+
+ctrl1 <- trainControl(method = "cv", number = 10)
+
+set.seed(666)
+mars.fit <- train(x, y,
+                  method = "earth",
+                  tuneGrid = mars_grid,
+                  trControl = ctrl1)
+
+ggplot(mars.fit)
+
+mars.fit$bestTune
+
+coef(mars.fit$finalModel) 
+
+```
+The test error is 279.0367.
+```{r}
+# prediction
+mars.pred <- predict(mars.fit, newdata = testing_data)
+#test error
+mean((mars.pred - testing_data[, "recovery_time"])^2)
+```
+
+## Generalized additive model (GAM)
+```{r}
+set.seed(666)
+gam.fit <- train(x, y,
+                 method = "gam",
+                 tuneGrid = data.frame(method = "GCV.Cp", select = c(TRUE,FALSE)),
+                 trControl = ctrl1)
+
+gam.fit$bestTune
+
+gam.fit$finalModel
+```
+The GAM model include all the predictors.
+
+```{r}
+plot(gam.fit$finalModel)
+```
+According to plots, variables `age`, `SBP`, `LDL`, and `weight` are more likely to have linear relationship while variables `bmi` and `height` are more likely to have nonlinear relationship.
+
+The test error is 272.0012.
+```{r}
+# prediction
+gam.pred <- predict(gam.fit, newdata = x2)
+#test error
+mean((gam.pred - testing_data[, "recovery_time"])^2)
+```
+
+# Linear Methods
+## lasso model
+```{r}
+set.seed(666)
+lasso.fit <- train(recovery_time ~ .,
+                   data = training_data,
+                   method = "glmnet",
+                   tuneGrid = expand.grid(alpha = 1,
+                                          lambda = exp(seq(5, -25, length = 100))),
+                   trControl = ctrl1)
+
+plot(lasso.fit, xTrans = log)
+
+lasso.fit$bestTune
+
+# coefficients in the final model w/ min CV MSE
+coef_min <- coef(lasso.fit$finalModel, s = lasso.fit$bestTune$lambda)
+
+sum(coef_min[-1, ] != 0)
+```
+There are 17 variables in the final lasso model. The selected tunning parameter applying minimum CV MSE: lambda = 0.00912288.
+
+The test error is 298.3016
+``` {r}
+# prediction
+lasso.pred <- predict(lasso.fit, newdata = testing_data)
+
+# test error
+mean((lasso.pred - testing_data[, "recovery_time"])^2)
+```
+
+## elastic net model
+```{r}
+set.seed(666)
+# min CV MSE
+enet.fit <- train(recovery_time ~ .,
+                data = training_data,
+                method = "glmnet",
+                tuneGrid = expand.grid(alpha = seq(0, 1, length = 21),
+                                       lambda = exp(seq(-25, 5, length = 100))),
+                trControl = ctrl1)
+enet.fit$bestTune
+coef(enet.fit$finalModel, enet.fit$bestTune$lambda)
+enet.pred <- predict(enet.fit, newdata = testing_data)
+
+# plot
+myCol <- rainbow(25)
+myPar <- list(superpose.symbol = list(col = myCol),
+              superpose.line = list(col = myCol))
+
+plot(enet.fit, par.settings = myPar)
+
+# test error
+mean((enet.pred - testing_data[, "recovery_time"])^2)
+```
+alpha = 0.15, lambda = 0.00367552, test error = 297.1642
+
+## principal components regression (PCR)
+```{r}
+set.seed(666)
+pcr.fit <- train(x, y,
+                 method = "pcr",
+                 tuneGrid = data.frame(ncomp = 1:15),
+                 trControl = ctrl1,
+                 preProcess = c("center", "scale"))
+
+x2 <- model.matrix(recovery_time ~ ., testing_data) [, -1]
+predy.pcr <- predict(pcr.fit, newdata = x2)
+
+# test error
+mean((testing_data$recovery_time - predy.pcr)^2)
+
+ggplot(pcr.fit,highlight = TRUE)
+
+# ncomp
+pcr.fit$finalModel$ncomp
+
+
+```
+The test error is 323.779
+There are 15 components included in the model.
+
+# Classification
+According to CDC, most patients appear to recover from acute COVID-19 illness within 4 weeks, which is 28 days. Classify outcome `recovery_time` into < 28 days: normal, >= 28 days: long.
+```{r}
+training_class <- training_data %>%
+  mutate(recovery_time = as.factor(ifelse(recovery_time < 28, "normal", "long")))
+```
+## LDA
+```{r}
+# Exploratory analysis: LDA based on every combination of two variables
+partimat(recovery_time ~ age + height + weight + bmi + SBP + LDL, 
+         data = training_class, method = "lda")
+```
+
+```{r}
+set.seed(666)
+ctrl2 <- trainControl(method = "repeatedcv", repeats = 10,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+# Convert non-numeric columns to numeric
+training_class[, 1:14] <- lapply(training_class[, 1:14], as.numeric)
+
+model.lda <- train(x = training_class[, 1:14],
+                   y = training_class$recovery_time,
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+
+testing_data2 <- testing_data
+testing_data2[, 1:14] <- lapply(testing_data2[, 1:14], as.numeric)
+
+lda.pred <- predict(model.lda, newdata = testing_data2, type = "prob")
+head(lda.pred)
+```
+
+# QDA
+```{r}
+model.qda <- train(x = training_class[, c("age", "height", "weight", "bmi", "SBP", "LDL")],
+                   y = training_class$recovery_time,
+                   method = "lda",
+                   metric = "ROC",
+                   trControl = ctrl2)
+
+qda.pred <- predict(model.qda, newdata = testing_data, type = "prob")
+head(lda.pred)
+```
+
+# Model Comparison
+```{r}
+resamp <- resamples(list(mars = mars.fit,
+                      gam = gam.fit,
+                      enet = enet.fit,
+                      lasso = lasso.fit,
+                      pcr = pcr.fit))
+
+summary(resamp)
+
+bwplot(resamp, metric = "RMSE")
+```
+
